@@ -1,0 +1,259 @@
+-- Define o player
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+local uis = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local lighting = game:GetService("Lighting")
+local players = game:GetService("Players")
+
+-- Som 1: Primeiro som a ser tocado
+local sound1 = Instance.new("Sound")
+sound1.SoundId = "rbxassetid://862484466"
+sound1.Volume = 1
+sound1.Parent = workspace
+
+-- Som 2: Segunda música que vai tocar após o primeiro som
+local sound2 = Instance.new("Sound")
+sound2.SoundId = "rbxassetid://9043323553"  -- ID da nova música
+sound2.Volume = 1
+sound2.Parent = workspace
+
+-- Função para alternar os sons em loop
+local function alternarSons()
+    sound1:Play()
+
+    -- Quando o som1 terminar, toca o som2
+    sound1.Ended:Connect(function()
+        sound2:Play()
+
+        -- Quando o som2 terminar, toca novamente o som1
+        sound2.Ended:Connect(function()
+            alternarSons()
+        end)
+    end)
+end
+
+-- Inicia o loop de alternância de sons
+alternarSons()
+
+-- Congela no início
+humanoid.WalkSpeed = 0
+humanoid.JumpPower = 0
+
+wait(2.5)
+
+-- Descongela depois
+humanoid.WalkSpeed = 16
+humanoid.JumpPower = 50
+
+-- Cria o sol
+local esfera = Instance.new("Part")
+esfera.Shape = Enum.PartType.Ball
+esfera.Size = Vector3.new(20, 20, 20)
+esfera.Color = Color3.fromRGB(255, 140, 0)
+esfera.Material = Enum.Material.Neon
+esfera.Anchored = true
+esfera.CanCollide = false
+esfera.Transparency = 0.3
+esfera.Parent = workspace
+
+-- Partículas para o efeito do sol normal
+local normalParticleEmitter = Instance.new("ParticleEmitter")
+normalParticleEmitter.Texture = "rbxassetid://243412090"  -- Textura de partículas (pode ser alterada)
+normalParticleEmitter.Size = NumberSequence.new(3)
+normalParticleEmitter.Lifetime = NumberRange.new(1, 2)
+normalParticleEmitter.Rate = 50
+normalParticleEmitter.Speed = NumberRange.new(5, 10)
+normalParticleEmitter.Color = ColorSequence.new(Color3.fromRGB(255, 140, 0))
+normalParticleEmitter.Parent = esfera
+
+-- Partículas para o efeito da explosão
+local explosionParticleEmitter = Instance.new("ParticleEmitter")
+explosionParticleEmitter.Texture = "rbxassetid://243412090"  -- Textura de partículas (pode ser alterada)
+explosionParticleEmitter.Size = NumberSequence.new(5)
+explosionParticleEmitter.Lifetime = NumberRange.new(1, 2)
+explosionParticleEmitter.Rate = 100
+explosionParticleEmitter.Speed = NumberRange.new(5, 10)
+explosionParticleEmitter.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0))
+explosionParticleEmitter.Parent = esfera
+explosionParticleEmitter.Enabled = false -- Desligado por padrão, será ativado durante a explosão
+
+-- Estados
+local moving = false
+local congelando = false
+local seguindo = true
+local emExplosao = false
+
+-- Atualizar posição do sol
+runService.Heartbeat:Connect(function()
+    if humanoidRootPart and humanoidRootPart.Parent and seguindo and not moving and not emExplosao then
+        esfera.CFrame = humanoidRootPart.CFrame * CFrame.new(0, 25, 0)
+    end
+end)
+
+-- Função de congelar ou descongelar todos
+local function setCongelamento(status)
+    for _, p in pairs(players:GetPlayers()) do
+        if p ~= player then
+            local char = p.Character
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.WalkSpeed = status and 0 or 16
+                char.Humanoid.JumpPower = status and 0 or 50
+            end
+        end
+    end
+end
+
+-- Criar ou remover nevoa
+local function criarNevoa(ativa)
+    if ativa then
+        lighting.FogColor = Color3.fromRGB(0, 255, 255)
+        lighting.FogEnd = 100
+    else
+        lighting.FogColor = Color3.fromRGB(255, 255, 255)
+        lighting.FogEnd = 100000
+    end
+end
+
+-- Função para atacar o player mais próximo
+local function atacarPessoaMaisProxima()
+    local maisProximo
+    local menorDistancia = math.huge
+
+    for _, p in pairs(players:GetPlayers()) do
+        if p ~= player then
+            local char = p.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local distancia = (humanoidRootPart.Position - char.HumanoidRootPart.Position).Magnitude
+                if distancia < menorDistancia then
+                    menorDistancia = distancia
+                    maisProximo = char
+                end
+            end
+        end
+    end
+
+    if maisProximo then
+        moving = true
+        local alvoHRP = maisProximo:FindFirstChild("HumanoidRootPart")
+        if alvoHRP then
+            local startPos = esfera.Position
+            local endPos = alvoHRP.Position + Vector3.new(0, 5, 0)
+            local tempo = 0.5
+            local startTime = tick()
+
+            while tick() - startTime < tempo do
+                local alpha = (tick() - startTime) / tempo
+                esfera.Position = startPos:Lerp(endPos, alpha)
+                runService.Heartbeat:Wait()
+            end
+
+            esfera.Position = endPos
+
+            local targetHumanoid = maisProximo:FindFirstChild("Humanoid")
+            if targetHumanoid then
+                targetHumanoid.Health = 0
+            end
+
+            wait(0.2)
+
+            -- Voltar o sol
+            local voltaPos = humanoidRootPart.Position + Vector3.new(0, 25, 0)
+            local voltaTime = tick()
+            while tick() - voltaTime < tempo do
+                local alpha = (tick() - voltaTime) / tempo
+                esfera.Position = endPos:Lerp(voltaPos, alpha)
+                runService.Heartbeat:Wait()
+            end
+
+            esfera.Position = voltaPos
+        end
+        moving = false
+    end
+end
+
+-- Função para explosão nuclear
+local function explodirSol()
+    if emExplosao then return end
+    emExplosao = true
+    seguindo = false
+
+    -- Sol sobe e fica vermelho
+    local alvoPos = humanoidRootPart.Position + Vector3.new(0, 100, 0)
+    local startPos = esfera.Position
+    local tempoSubir = 1
+    local startTime = tick()
+
+    while tick() - startTime < tempoSubir do
+        local alpha = (tick() - startTime) / tempoSubir
+        esfera.Position = startPos:Lerp(alvoPos, alpha)
+        runService.Heartbeat:Wait()
+    end
+
+    esfera.Position = alvoPos
+
+    -- Ativa as partículas de explosão
+    explosionParticleEmitter.Enabled = true
+
+    -- Sol fica vermelho e cresce
+    esfera.Color = Color3.fromRGB(255, 0, 0) -- Vermelho
+    local tamanhoOriginal = esfera.Size
+    esfera.Size = Vector3.new(100, 100, 100)
+
+    -- Flash branco
+    local originalBrightness = lighting.Brightness
+    local originalFog = lighting.FogColor
+    lighting.FogColor = Color3.fromRGB(255, 255, 255)
+    lighting.FogEnd = 50
+    lighting.Brightness = 10
+
+    -- Mata todos os outros jogadores
+    for _, p in pairs(players:GetPlayers()) do
+        if p ~= player then
+            local char = p.Character
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.Health = 0
+            end
+        end
+    end
+
+    -- Espera 3 segundos
+    wait(3)
+
+    -- Volta tudo ao normal
+    lighting.FogColor = Color3.fromRGB(255, 255, 255)
+    lighting.FogEnd = 100000
+    lighting.Brightness = originalBrightness
+    esfera.Size = tamanhoOriginal
+
+    -- Desativa as partículas de explosão
+    explosionParticleEmitter.Enabled = false
+
+    seguindo = true
+    emExplosao = false
+end
+
+-- Detectar teclas
+uis.InputBegan:Connect(function(input, isTyping)
+    if isTyping then return end
+
+    if input.KeyCode == Enum.KeyCode.K then
+        atacarPessoaMaisProxima()
+    elseif input.KeyCode == Enum.KeyCode.P then
+        congelando = not congelando
+        if congelando then
+            esfera.Color = Color3.fromRGB(0, 170, 255)
+            setCongelamento(true)
+            criarNevoa(true)
+        else
+            esfera.Color = Color3.fromRGB(255, 140, 0)
+            setCongelamento(false)
+            criarNevoa(false)
+        end
+    elseif input.KeyCode == Enum.KeyCode.N then
+        explodirSol()
+    end
+end)
