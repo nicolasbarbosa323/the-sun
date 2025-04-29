@@ -8,6 +8,7 @@ local uis = game:GetService("UserInputService")
 local runService = game:GetService("RunService")
 local lighting = game:GetService("Lighting")
 local players = game:GetService("Players")
+local chatService = game:GetService("Chat")
 
 -- Som 1: Primeiro som a ser tocado
 local sound1 = Instance.new("Sound")
@@ -86,6 +87,7 @@ local moving = false
 local congelando = false
 local seguindo = true
 local emExplosao = false
+local comandosAtivos = true
 
 -- Atualizar posição do sol
 runService.Heartbeat:Connect(function()
@@ -257,3 +259,17 @@ uis.InputBegan:Connect(function(input, isTyping)
         explodirSol()
     end
 end)
+
+-- Detectar comandos no chat
+chatService.OnMessageReceived = function(message, recipient)
+    if message:lower() == "the sun is a deadly lease" then
+        seguindo = true
+        comandosAtivos = true
+        print("Comandos reativados! O Sol agora segue você.")
+    elseif message:lower() == "sun stop" then
+        seguindo = false
+        comandosAtivos = false
+        print("Comandos desativados. O Sol parou de seguir você.")
+    end
+end
+
